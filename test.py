@@ -38,6 +38,7 @@ test_dataloader = DataLoader(dataset=test_data,
                              batch_size=BATCH_SIZE,
                              shuffle = False)
 accuracy_fn = Accuracy(task="multiclass", num_classes=7).to(device)
+loss_fn = nn.CrossEntropyLoss()
 
 def train_step(model: torch.nn.Module,
                data_loader: torch.utils.data.DataLoader,
@@ -194,31 +195,31 @@ class EmotionsModelV1(nn.Module):
         nn.Linear(in_features=hidden_units*144, 
             out_features = output_shape)
         )
-    def forward(self, x):
-        return self.layer_stack(x)
+  def forward(self, x):
+      return self.layer_stack(x)
 
 model_1 = EmotionsModelV1(input_shape = 1, # only one color channel
                               hidden_units = 10,
                               output_shape=NUM_CLASS_NAMES).to(device)
 
 optimizer_model_1 = torch.optim.SGD(params=model_1.parameters(), lr=0.01)
-loss_fn_model_1 = loss_fn = nn.CrossEntropyLoss()
+loss_fn_model_1 = nn.CrossEntropyLoss()
 
 # training model_1
 torch.manual_seed(42)
 torch.cuda.manual_seed(42)
 epochs = 20
 for epoch in range(epochs):
-    print(f"Epoch: {epoch}\n--------")
-    train_step(model=model_1,
-                data_loader = train_dataloader,
-                loss_fn = loss_fn_model_1,
-                optimizer = optimizer_model_1,
-                accuracy_fn = accuracy_fn,
-                device = device
-                )
-    test_step(model=model_1,
-                data_loader = test_dataloader,
-                loss_fn = loss_fn_model_1,
-                accuracy_fn=accuracy_fn,
-                device = device)
+  print(f"Epoch: {epoch}\n--------")
+  train_step(model=model_1,
+              data_loader = train_dataloader,
+              loss_fn = loss_fn_model_1,
+              optimizer = optimizer_model_1,
+              accuracy_fn = accuracy_fn,
+              device = device
+              )
+  test_step(model=model_1,
+              data_loader = test_dataloader,
+              loss_fn = loss_fn_model_1,
+              accuracy_fn=accuracy_fn,
+              device = device)
