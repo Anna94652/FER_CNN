@@ -11,14 +11,19 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import torchmetrics
 from torchmetrics import Accuracy
+from pathlib import Path
 
 device = "cuda" if torch.cuda.is_available() else "cpu"
 # Getting FER2013 dataset
 # Setup training data
+train_transform_trivial_augment = transforms.Compose([
+    transforms.TrivialAugmentWide(num_magnitude_bins=5),
+    transforms.ToTensor() 
+])
 train_data = datasets.FER2013(
     root = "data",
     split = "train",
-    transform = ToTensor(),
+    transform = train_transform_trivial_augment,
     target_transform = None
 )
 # Setup test data
@@ -134,18 +139,17 @@ def eval_model(model: torch.nn.Module,
     model.eval()
     with torch.inference_mode():
         for X, y in data_loader:
-            # Make our data device agnostic
-            X, y = X.to(device), y.to(device)
-            # Make predictions
-            y_pred = model(X)
+          # Make our data device agnostic
+          X, y = X.to(device), y.to(device)
+          # Make predictions
+          y_pred = model(X)
 
-            # Accumulate the loss and acc values per batch
-            loss += loss_fn(y_pred, y)
-            acc += accuracy_fn(y_pred.argmax(dim=1), y)
-
-            # Scale the loss and acc to find the average loss/acc per batch
-            loss/=len(data_loader)
-            acc/=len(data_loader)
+          # Accumulate the loss and acc values per batch
+          loss += loss_fn(y_pred, y)
+          acc += accuracy_fn(y_pred.argmax(dim=1), y)
+        # Scale the loss and acc to find the average loss/acc per batch
+        loss/=len(data_loader)
+        acc/=len(data_loader)
     return {"model_name": model.__class__.__name__, # only works when model was created with a class
             "model_loss": loss.item(),
             "model_acc": acc.item()}
@@ -158,48 +162,90 @@ model_0_results = eval_model(model=model_0,
 
 # Create a convolutional neural network
 class EmotionsModelV1(nn.Module):
-  """
-  Model architecture that replicates the TinyVGG model from CNN explainer
-  website.
-  """
   def __init__(self, input_shape: int, hidden_units: int, output_shape: int):
     super().__init__()
     self.layer_stack = nn.Sequential(
+        # block 1:
         nn.Conv2d(in_channels=input_shape,
                     out_channels=hidden_units,
                     kernel_size=3,
                     stride=1,
                     padding=1),
-        nn.ReLU(),
+        nn.BatchNorm2d(hidden_units),
+        nn.PReLU(),
         nn.Conv2d(in_channels=hidden_units,
                     out_channels=hidden_units,
                     kernel_size=3,
                     stride=1,
                     padding=1),
-        nn.ReLU(),
+        nn.BatchNorm2d(hidden_units),
+        nn.PReLU(),
         nn.MaxPool2d(kernel_size=2),
+        nn.Dropout(0.25), # helps with overfitting
+        # block 2:
         nn.Conv2d(in_channels=hidden_units,
-                    out_channels=hidden_units,
+                    out_channels=hidden_units*2, #increasing hidden units here
                     kernel_size=3,
                     stride=1,
                     padding=1),
-        nn.ReLU(),
-        nn.Conv2d(in_channels=hidden_units,
-                    out_channels=hidden_units,
+        nn.BatchNorm2d(hidden_units*2),
+        nn.PReLU(),
+        nn.Conv2d(in_channels=hidden_units*2,
+                    out_channels=hidden_units*2,
                     kernel_size=3,
                     stride=1,
                     padding=1),
-        nn.ReLU(),
+        nn.BatchNorm2d(hidden_units*2),
+        nn.PReLU(),
+        nn.MaxPool2d(kernel_size=2), 
+        nn.Dropout(0.25),
+        #block 3:
+        nn.Conv2d(in_channels=hidden_units * 2,
+                    out_channels=hidden_units*4,
+                    kernel_size=3,
+                    stride=1,
+                    padding=1),
+        nn.BatchNorm2d(hidden_units*4),
+        nn.PReLU(),
+        nn.Conv2d(in_channels=hidden_units*4,
+                    out_channels=hidden_units*4,
+                    kernel_size=3,
+                    stride=1,
+                    padding=1),
+        nn.BatchNorm2d(hidden_units*4),
+        nn.PReLU(),
         nn.MaxPool2d(kernel_size=2),
+        nn.Dropout(0.25),
+        # block 4:
+        nn.Conv2d(in_channels=hidden_units * 4,
+                    out_channels=hidden_units*8,
+                    kernel_size=3,
+                    stride=1,
+                    padding=1),
+        nn.BatchNorm2d(hidden_units*8),
+        nn.PReLU(),
+        nn.Conv2d(in_channels=hidden_units*8,
+                    out_channels=hidden_units*8,
+                    kernel_size=3,
+                    stride=1,
+                    padding=1),
+        nn.BatchNorm2d(hidden_units*8),
+        nn.PReLU(),
+        nn.MaxPool2d(kernel_size=2),
+        nn.Dropout(0.25),
+        # classifier:
         nn.Flatten(),
-        nn.Linear(in_features=hidden_units*144, 
-            out_features = output_shape)
+        nn.Linear(in_features = hidden_units * 72,
+            out_features = 256),
+        nn.PReLU(), 
+        nn.Dropout(0.5),
+        nn.Linear(in_features = 256, out_features = output_shape) #added another linear layer here
         )
   def forward(self, x):
       return self.layer_stack(x)
 
 model_1 = EmotionsModelV1(input_shape = 1, # only one color channel
-                              hidden_units = 10,
+                              hidden_units = 32,
                               output_shape=NUM_CLASS_NAMES).to(device)
 
 optimizer_model_1 = torch.optim.SGD(params=model_1.parameters(), lr=0.01)
@@ -208,7 +254,7 @@ loss_fn_model_1 = nn.CrossEntropyLoss()
 # training model_1
 torch.manual_seed(42)
 torch.cuda.manual_seed(42)
-epochs = 20
+epochs = 100
 for epoch in range(epochs):
   print(f"Epoch: {epoch}\n--------")
   train_step(model=model_1,
@@ -223,3 +269,14 @@ for epoch in range(epochs):
               loss_fn = loss_fn_model_1,
               accuracy_fn=accuracy_fn,
               device = device)
+  
+model_1_results = eval_model(model=model_1,
+                             data_loader = test_dataloader,
+                             loss_fn = loss_fn_model_1,
+                             accuracy_fn = accuracy_fn,
+                             device = device)
+print(model_1_results)
+
+# Save model
+Path("saved_models").mkdir(parents=True, exist_ok=True)
+torch.save(model_1.state_dict(), "saved_models\\model_3_very_long_train.pth")
