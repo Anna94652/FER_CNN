@@ -251,32 +251,32 @@ model_1 = EmotionsModelV1(input_shape = 1, # only one color channel
 optimizer_model_1 = torch.optim.SGD(params=model_1.parameters(), lr=0.01)
 loss_fn_model_1 = nn.CrossEntropyLoss()
 
-# training model_1
-torch.manual_seed(42)
-torch.cuda.manual_seed(42)
-epochs = 100
-for epoch in range(epochs):
-  print(f"Epoch: {epoch}\n--------")
-  train_step(model=model_1,
-              data_loader = train_dataloader,
-              loss_fn = loss_fn_model_1,
-              optimizer = optimizer_model_1,
-              accuracy_fn = accuracy_fn,
-              device = device
-              )
-  test_step(model=model_1,
-              data_loader = test_dataloader,
-              loss_fn = loss_fn_model_1,
-              accuracy_fn=accuracy_fn,
-              device = device)
+# # training model_1
+# torch.manual_seed(42)
+# torch.cuda.manual_seed(42)
+# epochs = 100
+# for epoch in range(epochs):
+#   print(f"Epoch: {epoch}\n--------")
+#   train_step(model=model_1,
+#               data_loader = train_dataloader,
+#               loss_fn = loss_fn_model_1,
+#               optimizer = optimizer_model_1,
+#               accuracy_fn = accuracy_fn,
+#               device = device
+#               )
+#   test_step(model=model_1,
+#               data_loader = test_dataloader,
+#               loss_fn = loss_fn_model_1,
+#               accuracy_fn=accuracy_fn,
+#               device = device)
   
-model_1_results = eval_model(model=model_1,
-                             data_loader = test_dataloader,
-                             loss_fn = loss_fn_model_1,
-                             accuracy_fn = accuracy_fn,
-                             device = device)
-print(model_1_results)
+# model_1_results = eval_model(model=model_1,
+#                              data_loader = test_dataloader,
+#                              loss_fn = loss_fn_model_1,
+#                              accuracy_fn = accuracy_fn,
+#                              device = device)
+# print(model_1_results)
 
-# Save model
-Path("saved_models").mkdir(parents=True, exist_ok=True)
-torch.save(model_1.state_dict(), "saved_models\\model_3_very_long_train.pth")
+# # Save model
+# Path("saved_models").mkdir(parents=True, exist_ok=True)
+# torch.save(model_1.state_dict(), "saved_models\\model_3_very_long_train.pth")
