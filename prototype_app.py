@@ -104,24 +104,6 @@ class EmotionsModelV1(nn.Module):
 
 
 
-train_transform_trivial_augment = transforms.Compose([
-    transforms.TrivialAugmentWide(num_magnitude_bins=5),
-    transforms.ToTensor()
-])
-train_data = datasets.FER2013(
-    root = "data",
-    split = "train",
-    transform = train_transform_trivial_augment,
-    target_transform = None
-)
-# Setup test data
-test_data = datasets.FER2013(
-    root = "data",
-    split = "test",
-    transform = ToTensor(),
-    target_transform = None
-)
-
 class_names = ['anger', 'disgust', 'fear', 'happiness', 'sadness', 'surprise', 'neutral']
 img_counter = 0
 NUM_CLASS_NAMES = 7
@@ -129,12 +111,6 @@ BATCH_SIZE = 32
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 
-# Turn datasets into iterables (batches)
-train_dataloader = DataLoader(dataset = train_data, batch_size = BATCH_SIZE,
-                              shuffle = True) # will shuffle the training data
-test_dataloader = DataLoader(dataset=test_data,
-                             batch_size=BATCH_SIZE,
-                             shuffle = False)
 
 ############### END
 
