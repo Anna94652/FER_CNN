@@ -13,21 +13,136 @@ from tqdm.auto import tqdm
 import helper_fns as hf
 import models as models
 from pathlib import Path
-import test as t
 import matplotlib.pyplot as plt
 import random
 from PIL import Image, ImageTk
+
+################ START copy of needed code from test.py
+
+class EmotionsModelV1(nn.Module):
+  def __init__(self, input_shape: int, hidden_units: int, output_shape: int):
+    super().__init__()
+    self.layer_stack = nn.Sequential(
+        # block 1:
+        nn.Conv2d(in_channels=input_shape,
+                    out_channels=hidden_units,
+                    kernel_size=3,
+                    stride=1,
+                    padding=1),
+        nn.BatchNorm2d(hidden_units),
+        nn.PReLU(),
+        nn.Conv2d(in_channels=hidden_units,
+                    out_channels=hidden_units,
+                    kernel_size=3,
+                    stride=1,
+                    padding=1),
+        nn.BatchNorm2d(hidden_units),
+        nn.PReLU(),
+        nn.MaxPool2d(kernel_size=2),
+        nn.Dropout(0.25), # helps with overfitting
+        # block 2:
+        nn.Conv2d(in_channels=hidden_units,
+                    out_channels=hidden_units*2, #increasing hidden units here
+                    kernel_size=3,
+                    stride=1,
+                    padding=1),
+        nn.BatchNorm2d(hidden_units*2),
+        nn.PReLU(),
+        nn.Conv2d(in_channels=hidden_units*2,
+                    out_channels=hidden_units*2,
+                    kernel_size=3,
+                    stride=1,
+                    padding=1),
+        nn.BatchNorm2d(hidden_units*2),
+        nn.PReLU(),
+        nn.MaxPool2d(kernel_size=2),
+        nn.Dropout(0.25),
+        #block 3:
+        nn.Conv2d(in_channels=hidden_units * 2,
+                    out_channels=hidden_units*4,
+                    kernel_size=3,
+                    stride=1,
+                    padding=1),
+        nn.BatchNorm2d(hidden_units*4),
+        nn.PReLU(),
+        nn.Conv2d(in_channels=hidden_units*4,
+                    out_channels=hidden_units*4,
+                    kernel_size=3,
+                    stride=1,
+                    padding=1),
+        nn.BatchNorm2d(hidden_units*4),
+        nn.PReLU(),
+        nn.MaxPool2d(kernel_size=2),
+        nn.Dropout(0.25),
+        # block 4:
+        nn.Conv2d(in_channels=hidden_units * 4,
+                    out_channels=hidden_units*8,
+                    kernel_size=3,
+                    stride=1,
+                    padding=1),
+        nn.BatchNorm2d(hidden_units*8),
+        nn.PReLU(),
+        nn.Conv2d(in_channels=hidden_units*8,
+                    out_channels=hidden_units*8,
+                    kernel_size=3,
+                    stride=1,
+                    padding=1),
+        nn.BatchNorm2d(hidden_units*8),
+        nn.PReLU(),
+        nn.MaxPool2d(kernel_size=2),
+        nn.Dropout(0.25),
+        # classifier:
+        nn.Flatten(),
+        nn.Linear(in_features = hidden_units * 72,
+            out_features = 256),
+        nn.PReLU(),
+        nn.Dropout(0.5),
+        nn.Linear(in_features = 256, out_features = output_shape) #added another linear layer here
+        )
+  def forward(self, x):
+      return self.layer_stack(x)
+
+
+
+train_transform_trivial_augment = transforms.Compose([
+    transforms.TrivialAugmentWide(num_magnitude_bins=5),
+    transforms.ToTensor()
+])
+train_data = datasets.FER2013(
+    root = "data",
+    split = "train",
+    transform = train_transform_trivial_augment,
+    target_transform = None
+)
+# Setup test data
+test_data = datasets.FER2013(
+    root = "data",
+    split = "test",
+    transform = ToTensor(),
+    target_transform = None
+)
 
 class_names = ['anger', 'disgust', 'fear', 'happiness', 'sadness', 'surprise', 'neutral']
 img_counter = 0
 NUM_CLASS_NAMES = 7
 BATCH_SIZE = 32
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-train_dataloader = t.train_dataloader
-test_dataloader = t.test_dataloader
+
+
+# Turn datasets into iterables (batches)
+train_dataloader = DataLoader(dataset = train_data, batch_size = BATCH_SIZE,
+                              shuffle = True) # will shuffle the training data
+test_dataloader = DataLoader(dataset=test_data,
+                             batch_size=BATCH_SIZE,
+                             shuffle = False)
+
+############### END
+
+
+
 accuracy_fn = Accuracy(task="multiclass", num_classes=7).to(device)
 loss_fn = nn.CrossEntropyLoss()
-loaded_model_3 = t.EmotionsModelV1(input_shape = 1, # only one color channel
+loaded_model_3 = EmotionsModelV1(input_shape = 1, # only one color channel
                               hidden_units = 32,
                               output_shape=NUM_CLASS_NAMES).to(device)
 loaded_model_3.load_state_dict(torch.load("saved_models/model_3_very_long_train.pth"))
@@ -90,6 +205,7 @@ class FacialClassifier:
         cv2.namedWindow("Emotion Recognition")
         # prevents openCL usage and unnecessary logging messages
         cv2.ocl.setUseOpenCL(False)
+        img_counter = 0
 
         while True:
             ret, frame = cam.read()
